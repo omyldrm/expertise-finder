@@ -18,3 +18,18 @@ model Item {
   title     String
   createdAt DateTime @default(now())
 }
+
+model ExpertRequest {
+  id                  String   @id @default(cuid())
+  title               String
+  description         String
+  country             String
+  domain              String
+  neededBy            String
+  links               String[]
+  notifyMatches       Boolean  @default(true)
+  saveToKnowledgeBase Boolean  @default(true)
+  notifiedExpertIds   String[]
+  status              String   @default("Open")
+  createdAt           DateTime @default(now())
+}
