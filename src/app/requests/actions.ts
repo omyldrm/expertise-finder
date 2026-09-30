@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { COUNTRIES, DOMAINS, URGENCIES, expertsToNotify } from "@/lib/experts";
+import { getDirectory } from "@/lib/directory";
+import { URGENCIES, employeesToNotify } from "@/lib/matching";
 
 function text(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -20,13 +21,14 @@ export async function createRequest(formData: FormData) {
   const description = text(formData, "description");
   if (!title || !description) throw new Error("Title and description are required");
 
-  const country = oneOf(text(formData, "country"), COUNTRIES);
-  const domain = oneOf(text(formData, "domain"), DOMAINS);
+  const { employees, countries, departments } = await getDirectory();
+  const country = oneOf(text(formData, "country"), countries);
+  const department = oneOf(text(formData, "department"), departments);
   const neededBy = oneOf(text(formData, "neededBy"), URGENCIES);
   const notifyMatches = formData.get("notifyMatches") === "on";
   const directId = text(formData, "expert") || undefined;
 
-  const notified = expertsToNotify(`${title} ${description}`, country, domain, directId).filter(
+  const notified = employeesToNotify(employees, `${title} ${description}`, country, department, directId).filter(
     (n) => notifyMatches || n.label === "Direct request",
   );
 
@@ -35,12 +37,12 @@ export async function createRequest(formData: FormData) {
       title: title.slice(0, 200),
       description: description.slice(0, 5000),
       country,
-      domain,
+      domain: department,
       neededBy,
       links: text(formData, "links").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 20),
       notifyMatches,
       saveToKnowledgeBase: formData.get("saveToKnowledgeBase") === "on",
-      notifiedExpertIds: notified.map((n) => n.expert.id),
+      notifiedExpertIds: notified.map((n) => n.employee.id),
     },
   });
 

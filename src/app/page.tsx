@@ -1,18 +1,26 @@
 import Form from "next/form";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
-import { BROWSE_AREAS, COUNTRIES, DOMAINS, LANGUAGES, RECENT_SEARCHES, URGENCIES } from "@/lib/experts";
+import { getDirectory } from "@/lib/directory";
+import { prisma } from "@/lib/prisma";
+import { URGENCIES } from "@/lib/matching";
 import { Divider, field, panel, primaryButton } from "@/components/finder-ui";
-
-const FILTERS = [
-  { name: "country", label: "Filter 1 · Country", any: "Any country", options: COUNTRIES },
-  { name: "domain", label: "Filter 2 · Domain", any: "Any domain", options: DOMAINS },
-  { name: "language", label: "Language", any: "Any", options: LANGUAGES },
-] as const;
 
 export default async function SearchPage({ searchParams }: PageProps<"/">) {
   const { q } = await searchParams;
   const query = typeof q === "string" ? q : "";
+  const directory = await getDirectory();
+  const recent = await prisma.expertRequest.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 3,
+    select: { id: true, title: true, status: true, notifiedExpertIds: true },
+  });
+
+  const filters = [
+    { name: "country", label: "Filter 1 · Country", any: "Any country", options: directory.countries },
+    { name: "department", label: "Filter 2 · Department", any: "Any department", options: directory.departments },
+    { name: "language", label: "Language", any: "Any", options: directory.languages },
+  ];
 
   return (
     <main className="flex flex-1 flex-col gap-12 px-4 py-10 sm:px-10 lg:flex-row lg:px-[120px] lg:py-16">
@@ -21,8 +29,8 @@ export default async function SearchPage({ searchParams }: PageProps<"/">) {
           <div className="font-mono text-xs tracking-[0.08em] text-muted-foreground">EXPERTISE FINDER</div>
           <h1 className="text-4xl font-semibold tracking-tight sm:text-[44px]">Who can help with this?</h1>
           <p className="max-w-[640px] text-[17px] text-muted-foreground">
-            Describe the question or customer request. We match it to colleagues based on what they have actually
-            worked on, written and answered.
+            Describe the question or customer request. We match it to colleagues based on their expertise, role,
+            location and the documents they own.
           </p>
         </div>
 
@@ -40,7 +48,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/">) {
           />
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {FILTERS.map((f) => (
+            {filters.map((f) => (
               <div key={f.name} className="flex flex-col gap-1.5">
                 <label htmlFor={f.name} className="text-[13px] text-muted-foreground">
                   {f.label}
@@ -67,7 +75,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/">) {
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Searches employee profiles, documents they own and Teams answers on the intranet.
+              Searches {directory.employees.length} colleagues across {directory.countries.length} countries.
             </p>
             <button type="submit" className={`${primaryButton} shrink-0 text-base`}>
               <Search className="size-[18px]" strokeWidth={2.2} />
@@ -79,7 +87,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/">) {
         <div className="flex flex-col gap-3">
           <h2 className="text-sm font-semibold">Browse by expertise area</h2>
           <div className="flex flex-wrap gap-2.5">
-            {BROWSE_AREAS.map((area) => (
+            {directory.expertise.map((area) => (
               <Link
                 key={area}
                 href={{ pathname: "/results", query: { q: area } }}
@@ -107,15 +115,19 @@ export default async function SearchPage({ searchParams }: PageProps<"/">) {
           </Link>
         </div>
         <div className={`${panel} flex flex-col gap-4 p-6`}>
-          <h2 className="text-base font-semibold">Your recent searches</h2>
-          {RECENT_SEARCHES.map((s, i) => (
-            <div key={s.query} className="flex flex-col gap-4">
+          <h2 className="text-base font-semibold">Recent requests</h2>
+          {recent.length === 0 && <p className="text-sm text-muted-foreground">No requests yet.</p>}
+          {recent.map((r, i) => (
+            <div key={r.id} className="flex flex-col gap-4">
               {i > 0 && <Divider />}
               <div className="flex flex-col gap-1">
-                <Link href={{ pathname: "/results", query: { q: s.query } }} className="text-sm hover:text-primary">
-                  {s.query}
+                <Link href="/requests" className="text-sm hover:text-primary">
+                  {r.title}
                 </Link>
-                <div className="text-[13px] text-muted-foreground">{s.status}</div>
+                <div className="text-[13px] text-muted-foreground">
+                  {r.status} · {r.notifiedExpertIds.length}{" "}
+                  {r.notifiedExpertIds.length === 1 ? "expert" : "experts"} notified
+                </div>
               </div>
             </div>
           ))}

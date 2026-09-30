@@ -1,12 +1,6 @@
 import Link from "next/link";
-import {
-  COUNTRIES,
-  DOMAINS,
-  EVIDENCE_FILTERS,
-  LANGUAGES,
-  interpret,
-  matchExperts,
-} from "@/lib/experts";
+import { getDirectory } from "@/lib/directory";
+import { interpret, matchEmployees } from "@/lib/matching";
 import { AutoSubmitForm } from "@/components/auto-submit-form";
 import { Avatar, BackLink, MatchBadge, panel, teamsChatUrl } from "@/components/finder-ui";
 
@@ -17,41 +11,35 @@ function all(params: Params, key: string) {
   return v === undefined ? [] : Array.isArray(v) ? v : [v];
 }
 
-function pick<T extends string>(values: string[], allowed: readonly T[]) {
+function pick(values: string[], allowed: readonly string[]) {
   return allowed.filter((a) => values.includes(a));
 }
 
 export default async function ResultsPage({ searchParams }: PageProps<"/results">) {
   const params = await searchParams;
+  const directory = await getDirectory();
   const query = all(params, "q")[0]?.trim() ?? "";
-  // "filtered" is set once the user touches the sidebar; before that, fall back to what we read from the request.
+  // "filtered" is set once the user touches the sidebar; before that, the country comes from the request text.
   const explicit = all(params, "filtered")[0] === "1";
-  const understood = interpret(query);
+  const understood = interpret(query, directory.employees);
 
-  const countries = pick(all(params, "country"), COUNTRIES);
-  const domains = pick(all(params, "domain"), DOMAINS);
+  const countries = pick(all(params, "country"), directory.countries);
   const effectiveCountries = explicit || countries.length ? countries : understood.countries;
-  const effectiveDomains = explicit || domains.length ? domains : understood.domains;
-  const evidence = explicit
-    ? pick(all(params, "evidence"), EVIDENCE_FILTERS.map((e) => e.value))
-    : EVIDENCE_FILTERS.map((e) => e.value);
-  const language = pick(all(params, "language"), LANGUAGES)[0];
-  const availableNow = all(params, "available")[0] === "1";
-  const urgency = all(params, "urgency")[0];
-  const sortParam = all(params, "sort")[0];
-  const sort = sortParam === "availability" || (!sortParam && urgency === "Today") ? "availability" : "match";
+  const departments = pick(all(params, "department"), directory.departments);
+  const languages = pick(all(params, "language"), directory.languages);
+  const locationTypes = pick(all(params, "locationType"), directory.locationTypes);
+  const sort = all(params, "sort")[0] === "name" ? "name" : "match";
 
-  const matches = matchExperts({
+  const matches = matchEmployees(directory.employees, {
     query,
     countries: effectiveCountries,
-    domains: effectiveDomains,
-    language,
-    evidence,
-    availableNow,
+    departments,
+    languages,
+    locationTypes,
   });
-  if (sort === "availability") matches.sort((a, b) => Number(b.expert.available) - Number(a.expert.available));
+  if (sort === "name") matches.sort((a, b) => a.employee.name.localeCompare(b.employee.name));
 
-  const chips = [...effectiveCountries, ...understood.topics];
+  const chips = [...effectiveCountries, ...understood.expertise];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -82,15 +70,10 @@ export default async function ResultsPage({ searchParams }: PageProps<"/results"
         <AutoSubmitForm key={query} id="filters" action="/results" className="flex w-full shrink-0 flex-col gap-6 md:w-[260px]">
           <input type="hidden" name="q" value={query} />
           <input type="hidden" name="filtered" value="1" />
-          {language && <input type="hidden" name="language" value={language} />}
-          {urgency && <input type="hidden" name="urgency" value={urgency} />}
-          <FilterGroup legend="Filter 1 · Country" name="country" options={COUNTRIES.map((c) => ({ value: c, label: c }))} checked={effectiveCountries} />
-          <FilterGroup legend="Filter 2 · Domain" name="domain" options={DOMAINS.map((d) => ({ value: d, label: d }))} checked={effectiveDomains} />
-          <FilterGroup legend="Evidence type" name="evidence" options={EVIDENCE_FILTERS} checked={evidence} />
-          <label className="flex items-center gap-2.5 text-sm">
-            <input type="checkbox" name="available" value="1" defaultChecked={availableNow} className="size-4 accent-primary" />
-            Available now only
-          </label>
+          <FilterGroup legend="Filter 1 · Country" name="country" options={directory.countries} checked={effectiveCountries} />
+          <FilterGroup legend="Filter 2 · Department" name="department" options={directory.departments} checked={departments} />
+          <FilterGroup legend="Language" name="language" options={directory.languages} checked={languages} />
+          <FilterGroup legend="Works from" name="locationType" options={directory.locationTypes} checked={locationTypes} />
           <noscript>
             <button type="submit" className="text-sm text-primary">Apply filters</button>
           </noscript>
@@ -110,7 +93,7 @@ export default async function ResultsPage({ searchParams }: PageProps<"/results"
                 className="h-9 rounded-md border border-input bg-card px-2.5 text-sm text-foreground"
               >
                 <option value="match">Best match</option>
-                <option value="availability">Availability</option>
+                <option value="name">Name</option>
               </select>
             </label>
           </div>
@@ -127,30 +110,39 @@ export default async function ResultsPage({ searchParams }: PageProps<"/results"
             </div>
           )}
 
-          {matches.map(({ expert, level }) => (
-            <article key={expert.id} className={`${panel} flex flex-col gap-6 p-6 lg:flex-row`}>
-              <Avatar initials={expert.initials} className="size-16" />
-              <div className="flex min-w-0 grow flex-col gap-3">
+          {matches.map(({ employee, level }) => (
+            <article key={employee.id} className={`${panel} flex flex-col gap-6 p-6 lg:flex-row`}>
+              <Avatar initials={employee.initials} className="size-16" />
+              <div className="flex min-w-0 grow flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-lg font-semibold">{expert.name}</h2>
+                  <h2 className="text-lg font-semibold">{employee.name}</h2>
                   <MatchBadge level={level} />
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {expert.role} · {expert.team} · {expert.city}
+                  {employee.role} · {employee.department} · {employee.city}, {employee.country}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="rounded-full bg-accent px-3 py-1 text-[13px] font-medium text-accent-foreground">
+                    {employee.expertise}
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    Speaks {employee.language} · {employee.locationType}
+                  </span>
                 </div>
               </div>
               <div className="flex w-full shrink-0 flex-col gap-2.5 lg:w-[200px]">
-                <div className="text-[13px] text-muted-foreground">{expert.availability}</div>
-                <a
-                  href={teamsChatUrl(expert.email)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-11 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-[#163a9c]"
-                >
-                  Message in Teams
-                </a>
+                {employee.email && (
+                  <a
+                    href={teamsChatUrl(employee.email)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-11 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground hover:bg-[#163a9c]"
+                  >
+                    Message in Teams
+                  </a>
+                )}
                 <Link
-                  href={`/experts/${expert.id}`}
+                  href={`/experts/${employee.id}`}
                   className="flex h-11 items-center justify-center rounded-lg border border-input text-sm font-medium hover:bg-muted"
                 >
                   View profile
@@ -167,22 +159,16 @@ export default async function ResultsPage({ searchParams }: PageProps<"/results"
 function FilterGroup({ legend, name, options, checked }: {
   legend: string;
   name: string;
-  options: readonly { value: string; label: string }[];
+  options: readonly string[];
   checked: readonly string[];
 }) {
   return (
     <fieldset className="flex flex-col gap-2.5">
       <legend className="mb-2.5 text-sm font-semibold">{legend}</legend>
       {options.map((o) => (
-        <label key={o.value} className="flex items-center gap-2.5 text-sm">
-          <input
-            type="checkbox"
-            name={name}
-            value={o.value}
-            defaultChecked={checked.includes(o.value)}
-            className="size-4 accent-primary"
-          />
-          {o.label}
+        <label key={o} className="flex items-center gap-2.5 text-sm">
+          <input type="checkbox" name={name} value={o} defaultChecked={checked.includes(o)} className="size-4 accent-primary" />
+          {o}
         </label>
       ))}
     </fieldset>

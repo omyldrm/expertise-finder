@@ -33,3 +33,60 @@ model ExpertRequest {
   status              String   @default("Open")
   createdAt           DateTime @default(now())
 }
+
+model contact_info {
+  id            BigInt         @id(map: "contactinfo_pkey") @default(autoincrement())
+  contactid     BigInt         @unique(map: "contactinfo_contactid_key")
+  email         String?        @db.VarChar
+  phone         String?        @db.VarChar
+  slack         String?        @db.VarChar
+  fact_employee fact_employee?
+}
+
+model employee_expertise {
+  id            BigInt          @id(map: "expertise_pkey") @default(autoincrement())
+  expertiseid   BigInt          @unique(map: "expertise_expertiseid_key") @default(autoincrement())
+  expertise     String?         @db.VarChar
+  fact_employee fact_employee[]
+}
+
+model employee_language {
+  id            BigInt          @id @default(autoincrement())
+  languageid    BigInt          @unique
+  language      String?         @db.VarChar
+  fact_employee fact_employee[]
+}
+
+model employee_location {
+  id            BigInt          @id @default(autoincrement())
+  locationid    BigInt          @unique
+  location_type String?         @db.VarChar
+  location      String?         @db.VarChar
+  timezone      String?         @db.VarChar
+  fact_employee fact_employee[]
+}
+
+model fact_employee {
+  id                 BigInt              @id @default(autoincrement())
+  contactid          BigInt              @unique
+  expertiseid        BigInt
+  locationid         BigInt              @default(autoincrement())
+  department         String?             @db.VarChar
+  job_function       String?             @db.VarChar
+  languageid         BigInt
+  contact_info       contact_info        @relation(fields: [contactid], references: [contactid], onDelete: Cascade)
+  employee_expertise employee_expertise  @relation(fields: [expertiseid], references: [expertiseid], onDelete: Cascade)
+  employee_language  employee_language   @relation(fields: [languageid], references: [languageid], onDelete: Cascade)
+  employee_location  employee_location   @relation(fields: [locationid], references: [locationid], onDelete: Cascade)
+  employee_document  employee_document[]
+}
+
+model employee_document {
+  id            BigInt        @id @default(autoincrement())
+  employeeid    BigInt
+  title         String        @db.VarChar
+  last_reviewed DateTime      @db.Date
+  fact_employee fact_employee @relation(fields: [employeeid], references: [id], onDelete: Cascade)
+
+  @@index([employeeid])
+}
