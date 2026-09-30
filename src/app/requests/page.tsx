@@ -2,7 +2,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Check, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getExpert } from "@/lib/experts";
+import { getDirectory } from "@/lib/directory";
 import { Avatar, panel, primaryButton } from "@/components/finder-ui";
 
 export const metadata = { title: "My requests · Expertise Finder" };
@@ -17,6 +17,7 @@ export default async function RequestsPage({ searchParams }: PageProps<"/request
   await connection();
   const { posted } = await searchParams;
   const requests = await prisma.expertRequest.findMany({ orderBy: { createdAt: "desc" } });
+  const { employees } = await getDirectory();
   const justPosted = requests.find((r) => r.id === posted);
 
   return (
@@ -51,7 +52,7 @@ export default async function RequestsPage({ searchParams }: PageProps<"/request
       )}
 
       {requests.map((r) => {
-        const notified = r.notifiedExpertIds.map(getExpert).filter((e) => e !== undefined);
+        const notified = employees.filter((e) => r.notifiedExpertIds.includes(e.id));
         return (
           <article
             key={r.id}

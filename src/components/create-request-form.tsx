@@ -3,15 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
-import {
-  COUNTRIES,
-  DOMAINS,
-  URGENCIES,
-  expertsToNotify,
-  interpret,
-  type Country,
-  type Domain,
-} from "@/lib/experts";
+import { URGENCIES, employeesToNotify, interpret, type Employee } from "@/lib/matching";
 import { createRequest } from "@/app/requests/actions";
 import { Avatar, field, panel, primaryButton, secondaryButton } from "@/components/finder-ui";
 
@@ -24,22 +16,30 @@ function SubmitButton() {
   );
 }
 
-export function CreateRequestForm({ initialQuery, expertId }: { initialQuery: string; expertId?: string }) {
-  const understood = interpret(initialQuery);
+export function CreateRequestForm({ employees, countries, departments, initialQuery, expertId }: {
+  employees: Employee[];
+  countries: string[];
+  departments: string[];
+  initialQuery: string;
+  expertId?: string;
+}) {
+  const direct = employees.find((e) => e.id === expertId);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState(initialQuery);
-  const [country, setCountry] = useState<Country>(understood.countries[0] ?? COUNTRIES[0]);
-  const [domain, setDomain] = useState<Domain>(understood.domains[0] ?? DOMAINS[0]);
+  const [country, setCountry] = useState(
+    direct?.country ?? interpret(initialQuery, employees).countries[0] ?? countries[0] ?? "",
+  );
+  const [department, setDepartment] = useState(direct?.department ?? departments[0] ?? "");
   const [notifyMatches, setNotifyMatches] = useState(true);
 
-  const notified = expertsToNotify(`${title} ${description}`, country, domain, expertId).filter(
+  const notified = employeesToNotify(employees, `${title} ${description}`, country, department, expertId).filter(
     (n) => notifyMatches || n.label === "Direct request",
   );
 
   return (
     <div className="flex flex-col gap-10 lg:flex-row">
       <form action={createRequest} className={`${panel} flex min-w-0 grow flex-col gap-5 p-7`}>
-        {expertId && <input type="hidden" name="expert" value={expertId} />}
+        {direct && <input type="hidden" name="expert" value={direct.id} />}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="title" className="text-sm font-semibold">
             Title
@@ -73,14 +73,14 @@ export function CreateRequestForm({ initialQuery, expertId }: { initialQuery: st
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="country" className="text-[13px] text-muted-foreground">Country</label>
-            <select id="country" name="country" value={country} onChange={(e) => setCountry(e.target.value as Country)} className={field}>
-              {COUNTRIES.map((c) => <option key={c}>{c}</option>)}
+            <select id="country" name="country" value={country} onChange={(e) => setCountry(e.target.value)} className={field}>
+              {countries.map((c) => <option key={c}>{c}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="domain" className="text-[13px] text-muted-foreground">Domain</label>
-            <select id="domain" name="domain" value={domain} onChange={(e) => setDomain(e.target.value as Domain)} className={field}>
-              {DOMAINS.map((d) => <option key={d}>{d}</option>)}
+            <label htmlFor="department" className="text-[13px] text-muted-foreground">Department</label>
+            <select id="department" name="department" value={department} onChange={(e) => setDepartment(e.target.value)} className={field}>
+              {departments.map((d) => <option key={d}>{d}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -127,11 +127,11 @@ export function CreateRequestForm({ initialQuery, expertId }: { initialQuery: st
         <div className={`${panel} flex flex-col gap-3.5 p-6`}>
           <h2 className="text-base font-semibold">Will be notified</h2>
           {notified.length ? (
-            notified.map(({ expert, label }) => (
-              <Link key={expert.id} href={`/experts/${expert.id}`} className="flex items-center gap-3 hover:text-primary">
-                <Avatar initials={expert.initials} className="size-10 text-sm" />
+            notified.map(({ employee, label }) => (
+              <Link key={employee.id} href={`/experts/${employee.id}`} className="flex items-center gap-3 hover:text-primary">
+                <Avatar initials={employee.initials} className="size-10 text-sm" />
                 <span className="flex flex-col">
-                  <span className="text-sm font-medium">{expert.name}</span>
+                  <span className="text-sm font-medium">{employee.name}</span>
                   <span className="text-[13px] text-muted-foreground">{label}</span>
                 </span>
               </Link>

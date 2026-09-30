@@ -1,7 +1,8 @@
 import Form from "next/form";
 import Link from "next/link";
 import { FileText, Search } from "lucide-react";
-import { allDocuments } from "@/lib/experts";
+import { getDirectory } from "@/lib/directory";
+import { reviewStatus } from "@/lib/matching";
 import { Avatar, field, panel } from "@/components/finder-ui";
 
 export const metadata = { title: "Documents · Expertise Finder" };
@@ -10,13 +11,18 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim() : "";
   const needsReview = params.review === "1";
+  const { employees } = await getDirectory();
+  const now = new Date();
 
   const needle = query.toLowerCase();
-  const documents = allDocuments().filter(
-    (d) =>
-      (!needsReview || d.stale) &&
-      (!needle || `${d.title} ${d.owner.name} ${d.owner.team}`.toLowerCase().includes(needle)),
-  );
+  const documents = employees
+    .flatMap((owner) => owner.documents.map((doc) => ({ ...doc, owner, status: reviewStatus(doc.lastReviewed, now) })))
+    .filter(
+      (d) =>
+        (!needsReview || d.status.stale) &&
+        (!needle || `${d.title} ${d.owner.name} ${d.owner.department} ${d.owner.expertise}`.toLowerCase().includes(needle)),
+    )
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-4 pt-8 pb-10 sm:px-10 lg:px-[120px]">
@@ -35,7 +41,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
             id="doc-q"
             name="q"
             defaultValue={query}
-            placeholder="Search by document, owner or team"
+            placeholder="Search by document, owner, department or expertise"
             className={`${field} pl-9`}
           />
         </div>
@@ -59,7 +65,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
           </thead>
           <tbody>
             {documents.map((d) => (
-              <tr key={`${d.owner.id}-${d.title}`} className="border-b border-[#e6e6e2] last:border-0">
+              <tr key={d.id} className="border-b border-[#e6e6e2] last:border-0">
                 <td className="px-6 py-4">
                   <span className="flex items-center gap-2.5 text-[15px]">
                     <FileText className="size-4 shrink-0 text-muted-foreground" />
@@ -71,12 +77,12 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/docume
                     <Avatar initials={d.owner.initials} className="size-8 text-xs" />
                     <span className="flex flex-col">
                       <span className="font-medium">{d.owner.name}</span>
-                      <span className="text-[13px] text-muted-foreground">{d.owner.role} · {d.owner.team}</span>
+                      <span className="text-[13px] text-muted-foreground">{d.owner.role} · {d.owner.department}</span>
                     </span>
                   </Link>
                 </td>
-                <td className={`px-6 py-4 text-[13px] ${d.stale ? "font-medium text-warning" : "text-muted-foreground"}`}>
-                  {d.status}
+                <td className={`px-6 py-4 text-[13px] ${d.status.stale ? "font-medium text-warning" : "text-muted-foreground"}`}>
+                  {d.status.label}
                 </td>
               </tr>
             ))}

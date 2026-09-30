@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { MatchLevel } from "@/lib/experts";
+import type { MatchLevel } from "@/lib/matching";
 
 export const panel = "rounded-xl border border-border bg-card";
 
