@@ -34,3 +34,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+# Hackathon Starter
+
+## Setup
+```bash
+git clone <repo-url>
+cd hackathon-starter
+npm install
+cp .env.example .env   # paste the DATABASE_URL from the team chat
+npx prisma db push
+npm run dev
+```
+
+## Stack
+Next.js (App Router) · TypeScript · Tailwind · shadcn/ui · Prisma · Neon Postgres · Vercel
+
+## Workflow
+- Pull before you start: `git pull`
+- One branch per feature: `git checkout -b feature/name`
+- Merge small and often
